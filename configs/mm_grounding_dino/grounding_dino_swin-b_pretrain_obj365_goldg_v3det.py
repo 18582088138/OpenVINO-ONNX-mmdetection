@@ -2,7 +2,6 @@ _base_ = 'grounding_dino_swin-t_pretrain_obj365.py'
 
 pretrained = 'https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_base_patch4_window12_384_22k.pth'  # noqa
 model = dict(
-    use_autocast=True,
     backbone=dict(
         _delete_=True,
         type='SwinTransformer',

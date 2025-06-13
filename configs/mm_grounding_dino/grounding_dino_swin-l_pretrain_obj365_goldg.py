@@ -3,7 +3,6 @@ _base_ = 'grounding_dino_swin-t_pretrain_obj365.py'
 pretrained = 'https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_large_patch4_window12_384_22k.pth'  # noqa
 num_levels = 5
 model = dict(
-    use_autocast=True,
     num_feature_levels=num_levels,
     backbone=dict(
         _delete_=True,

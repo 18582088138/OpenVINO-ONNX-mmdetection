@@ -176,6 +176,13 @@ def main():
     # TODO: Video and Webcam are currently not supported and
     #  may consume too much memory if your input folder has a lot of images.
     #  We will be optimized later.
+    input_paths = call_args['inputs']
+    if ',' in input_paths:
+        inputs = input_paths.split(',')
+    else:
+        inputs = input_paths
+    call_args['inputs'] = inputs
+    init_args['show_progress'] = False
     inferencer = DetInferencer(**init_args)
 
     chunked_size = call_args.pop('chunked_size')
