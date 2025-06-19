@@ -20,6 +20,7 @@ from mmdet.registry import MODELS
 from ..layers import PatchEmbed, PatchMerging
 
 
+
 class WindowMSA(BaseModule):
     """Window based multi-head self-attention (W-MSA) module with relative
     position bias.
@@ -181,7 +182,7 @@ class ShiftWindowMSA(BaseModule):
     def forward(self, query, hw_shape):
         B, L, C = query.shape
         H, W = hw_shape
-        assert L == H * W, 'input feature has wrong size'
+        #assert L == H * W, 'input feature has wrong size'
         query = query.view(B, H, W, C)
 
         # pad feature maps to multiples of window size
@@ -246,8 +247,8 @@ class ShiftWindowMSA(BaseModule):
         else:
             x = shifted_x
 
-        if pad_r > 0 or pad_b:
-            x = x[:, :H, :W, :].contiguous()
+        #if pad_r > 0 or pad_b:
+        x = x[:, :H, :W, :].contiguous()
 
         x = x.view(B, H * W, C)
 
@@ -264,10 +265,11 @@ class ShiftWindowMSA(BaseModule):
             x: (B, H, W, C)
         """
         window_size = self.window_size
-        B = int(windows.shape[0] / (H * W / window_size / window_size))
-        x = windows.view(B, H // window_size, W // window_size, window_size,
-                         window_size, -1)
-        x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
+        #B = int(windows.shape[0] / (H * W / window_size / window_size))
+        C = windows.shape[-1]
+        x = windows.view(-1, H // window_size, W // window_size, window_size,
+                         window_size, C)
+        x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, H, W, C)
         return x
 
     def window_partition(self, x):
@@ -761,7 +763,7 @@ class SwinTransformer(BaseModule):
                                                              2).contiguous()
                 outs.append(out)
 
-        return outs
+        return tuple(outs)
 
 
 def swin_converter(ckpt):
