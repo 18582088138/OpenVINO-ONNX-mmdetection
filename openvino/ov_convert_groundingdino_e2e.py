@@ -1,20 +1,23 @@
 import torch
 from argparse import ArgumentParser
+from pathlib import Path
 from mmdet.apis import DetInferencer
 from mmdet.structures import DetDataSample
 from transformers import AutoTokenizer
 from mmdet.models.language_models.bert import generate_masks_with_special_tokens_and_transfer_map
 
+import openvino as ov
+core = ov.Core()
+
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('conf', type=str, help='Config file')
-    parser.add_argument('weights', type=str, help='*.pth file')
-    parser.add_argument('h', type=str, help='input width')
-    parser.add_argument('w', type=str, help='input height')
+    parser.add_argument('--conf', type=str, default="../configs/mm_grounding_dino/grounding_dino_swin-b_pretrain_obj365_goldg_v3det.py", help='Config file')
+    parser.add_argument('--weights', type=str, default="./models/grounding_dino_swin-b_pretrain_obj365_goldg_v3de-f83eef00.pth", help='*.pth file')
+    parser.add_argument('--h', type=str, default="800", help='input width')
+    parser.add_argument('--w', type=str, default="1333", help='input height')
 
     args = parser.parse_args()
     return args
-
 
 class GroundingDINOWrapper(torch.nn.Module):
     def __init__(self, model, img_shape):
@@ -71,7 +74,7 @@ def main():
     text_prompts = [' . '.join(classes) + ' .']
 
     cfg = infer.model.language_model_cfg
-    tokenizer = AutoTokenizer.from_pretrained('/home/wayne/models/bert-base-uncased')
+    tokenizer = AutoTokenizer.from_pretrained(Path(__file__).resolve().parent / 'models' / 'bert-base-uncased')
     tokenized = tokenizer.batch_encode_plus(
                 text_prompts,
                 max_length=cfg.max_tokens,
@@ -99,15 +102,34 @@ def main():
 
     model_wrapper = GroundingDINOWrapper(infer.model.eval(), img_shape).eval()
 
+    script_dir = Path(__file__).resolve().parent
+    onnx_model_path = script_dir / f"./models/ONNX_model/gdino_swinb_{img_shape[0]}_{img_shape[1]}.onnx"
+    onnx_model_path.parent.mkdir(parents=True, exist_ok=True)
+
     with torch.no_grad():
         torch.onnx.export(
             model_wrapper,
             args=(batch_inputs, input_ids, position_ids, text_token_mask),
-            f=f"gdino_swinb_{img_shape[0]}_{img_shape[1]}.onnx",
+            f=str(onnx_model_path),
             input_names=input_names,
             output_names=output_names,
             dynamic_axes=dynamic_axes,
             opset_version=16)
+
+    print(f"[INFO] ONNX model saved as {onnx_model_path}")
+
+    ov_model_path = script_dir / f"./models/IR_model/gdino_swinb_{img_shape[0]}_{img_shape[1]}.xml"
+    ov_model_path.parent.mkdir(parents=True, exist_ok=True)
+    ov_input = {"img":batch_inputs,
+                "input_ids":input_ids,
+                "position_ids":position_ids,
+                "text_token_mask":text_token_mask}
+    ov_model = ov.convert_model(
+        str(onnx_model_path),
+        example_input=ov_input,
+    )
+    ov.save_model(ov_model, ov_model_path)
+    print(f"[INFO] OpenVINO model saved as {ov_model_path}")
 
 
 if __name__ == '__main__':

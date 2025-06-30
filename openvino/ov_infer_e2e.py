@@ -1,5 +1,6 @@
 import cv2
 import re
+import time
 import torch
 import openvino as ov
 import supervision as sv
@@ -12,6 +13,7 @@ from transformers import AutoTokenizer
 from torchvision import transforms
 
 
+SCRIPT_DIR = Path(__file__).resolve().parent
 
 def preprocess_image(image_path, shape=(512,512)):
     img = Image.open(image_path)
@@ -85,8 +87,6 @@ def generate_masks_with_special_tokens(tokenized, special_tokens_list):
 
     return attention_mask, position_ids.to(torch.long)
 
-
-nltk_dir = './models/nltk_data'
 def find_noun_phrases(caption: str) -> list:
     """Find noun phrases in a caption using nltk.
     Args:
@@ -99,8 +99,10 @@ def find_noun_phrases(caption: str) -> list:
         >>> caption = 'There is two cat and a remote in the picture'
         >>> find_noun_phrases(caption) # ['cat', 'a remote', 'the picture']
     """
+    nltk_dir = SCRIPT_DIR / 'models' / 'nltk_data'
     try:
         import nltk
+        nltk_dir.mkdir(parents=True, exist_ok=True)
         nltk.download('punkt', download_dir=nltk_dir)
         nltk.download('punkt_tab')
         nltk.download('averaged_perceptron_tagger_eng')
@@ -342,18 +344,20 @@ def annotate_once(image_path, output_path, classes, cls_score, bbox_pred, token_
 
 def parse_args():
     parser = ArgumentParser()
-    parser.add_argument('-m', '--model', type=str, help="OpenVINO *.xml file")
-    parser.add_argument('-d', '--device', type=str, help="Device to use")
-    parser.add_argument('-p', '--prompt', type=str, help="prompt")
-    parser.add_argument('-i', '--images', type=str, help="Input images")
-    parser.add_argument('-o', '--outdir', type=str, default='outputs',help="Output directory")
-    parser.add_argument('-t', '--threshold', type=float, default=0.3)
+    parser.add_argument('-m', '--model', type=str,
+                        default='./models/IR_model/gdino_swinb_800_1333.xml',
+                        help="OpenVINO *.xml file")
+    parser.add_argument('-d', '--device', type=str, default='CPU', help="Device to use")
+    parser.add_argument('-p', '--prompt', type=str, default='car', help="prompt")
+    parser.add_argument('-i', '--images', type=str, default='../demo/large_image.jpg', help="Input images")
+    parser.add_argument('-o', '--outdir', type=str, default='./outputs',help="Output directory")
+    parser.add_argument('-t', '--threshold', type=float, default=0.2)
 
     args = parser.parse_args()
     return args
 
 cfg = {
-    'name': './models/bert-base-uncased',
+    'name': str(SCRIPT_DIR / 'models' / 'bert-base-uncased'),
     'max_tokens': 256,
     'special_tokens_list': ['[CLS]', '[SEP]', '.', '?'],
     'max_per_img':  300
@@ -393,9 +397,15 @@ def main():
     attention_mask, position_ids = generate_masks_with_special_tokens(tokenized, special_tokens)
 
     cls, bbox = infer_once(model, batch_img, tokenized['input_ids'], position_ids, attention_mask)
+    print("[Warm up]")
+    start_time = time.time()
+    infer_count = 1
+    cls, bbox = infer_once(model, batch_img, tokenized['input_ids'], position_ids, attention_mask)
+    print(f"[OpenVINO] Inference time cost: {((time.time()-start_time)/infer_count)*1000:.2f} ms")
 
     assert(cls.shape[0] == bs and bbox.shape[0] == bs)
     outdir = Path(args.outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
     for i in range(bs):
         output_file = outdir / image_paths[i].split('/')[-1]
         print(f"to annotate {output_file}")
