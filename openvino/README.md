@@ -4,10 +4,22 @@ This document provides instructions on how to set up and run the Grounding DINO 
 
 ## Prerequisites
 
-Before you begin, ensure you have Python installed. Then, install all the required Python packages by running the following command in your terminal:
+Before you begin, ensure you have Python installed. 
+Then, install all the required Python packages by running the following command in your terminal:
 
+Reference install Doc: [MMDetection Get Started](https://mmdetection.readthedocs.io/en/latest/get_started.html)
 ```bash
+# Install requirements
 pip install -r requirements.txt
+
+# Install MMEngine and MMCV using MIM.
+pip install -U openmim
+mim install mmengine
+mim install "mmcv>=2.0.0"
+
+# Install MMDetection
+cd OpenVINO-ONNX-mmdetection
+pip install -v -e .
 ```
 
 ## Step-by-Step Guide
