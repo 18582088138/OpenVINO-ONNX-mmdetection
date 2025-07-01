@@ -9,12 +9,15 @@ import re
 import torch
 import supervision as sv
 from argparse import ArgumentParser
+import logging
 
 from PIL import Image
 from torchvision import transforms
 from typing import List, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 def preprocess_image(image_path, shape=(512,512)):
     img = Image.open(image_path)
@@ -87,42 +90,36 @@ def generate_masks_with_special_tokens_and_transfer_map_np(
     return attention_mask, position_ids
 
 def find_noun_phrases(caption: str) -> list:
-    """Find noun phrases in a caption using nltk.
-    Args:
-        caption (str): The caption to analyze.
-
-    Returns:
-        list: List of noun phrases found in the caption.
-
-    Examples:
-        >>> caption = 'There is two cat and a remote in the picture'
-        >>> find_noun_phrases(caption) # ['cat', 'a remote', 'the picture']
-    """
+    """Find noun phrases in a caption using nltk."""
+    import nltk
     nltk_dir = SCRIPT_DIR / 'models' / 'nltk_data'
+    nltk_dir.mkdir(parents=True, exist_ok=True)
+    nltk_dir_str = str(nltk_dir)
+    if nltk_dir_str not in nltk.data.path:
+        nltk.data.path.append(nltk_dir_str)
+    def safe_nltk_download(resource, resource_path, download_dir):
+        try:
+            nltk.data.find(resource_path)
+            logging.debug(f"NLTK resource {resource} exists, skip download")
+        except LookupError:
+            logging.debug(f"NLTK resource downloading: {resource}")
+            nltk.download(resource, download_dir=download_dir)
     try:
-        import nltk
-        nltk_dir.mkdir(parents=True, exist_ok=True)
-        nltk.download('punkt', download_dir=nltk_dir)
-        nltk.download('punkt_tab')
-        nltk.download('averaged_perceptron_tagger_eng')
-        nltk.download('averaged_perceptron_tagger', download_dir=nltk_dir)
+        safe_nltk_download('punkt', 'tokenizers/punkt', nltk_dir_str)
+        safe_nltk_download('averaged_perceptron_tagger', 'taggers/averaged_perceptron_tagger', nltk_dir_str)
     except ImportError:
         raise RuntimeError('nltk is not installed, please install it by: '
                            'pip install nltk.')
-
     caption = caption.lower()
     tokens = nltk.word_tokenize(caption)
     pos_tags = nltk.pos_tag(tokens)
-
     grammar = 'NP: {<DT>?<JJ.*>*<NN.*>+}'
     cp = nltk.RegexpParser(grammar)
     result = cp.parse(pos_tags)
-
     noun_phrases = []
     for subtree in result.subtrees():
         if subtree.label() == 'NP':
             noun_phrases.append(' '.join(t[0] for t in subtree.leaves()))
-
     return noun_phrases
 
 
@@ -166,9 +163,9 @@ def run_ner(caption: str) -> Tuple[list, list]:
             for m in re.finditer(entity, caption.lower()):
                 tokens_positive.append([[m.start(), m.end()]])
         except Exception:
-            print('noun entities:', noun_phrases)
-            print('entity:', entity)
-            print('caption:', caption.lower())
+            logging.info('noun entities:', noun_phrases)
+            logging.info('entity:', entity)
+            logging.info('caption:', caption.lower())
     return tokens_positive, noun_phrases
 
 def create_positive_map(tokenized,
@@ -199,8 +196,8 @@ def create_positive_map(tokenized,
                 beg_pos = tokenized.char_to_token(beg)
                 end_pos = tokenized.char_to_token(end - 1)
             except Exception as e:
-                print('beg:', beg, 'end:', end)
-                print('token_positive:', tokens_positive)
+                logging.info('beg:', beg, 'end:', end)
+                logging.info('token_positive:', tokens_positive)
                 raise e
             if beg_pos is None:
                 try:
@@ -273,7 +270,7 @@ class OVSeparateGroundingDINO:
                 'special_tokens_list': ['[CLS]', '[SEP]', '.', '?'],
                 'max_per_img':  300
             }
-        print("[INFO] OpenVINO Model Init Done")
+        logging.info("Init OV Model")
 
     def preprocess_text(self, text_prompts, max_tokens=256, pad_to_max=False):
         tokenized = self.tokenizer.batch_encode_plus(
@@ -355,9 +352,9 @@ class OVSeparateGroundingDINO:
             visual_feats[0], visual_feats[1], visual_feats[2], visual_feats[3], 
             embedded, masks, position_ids, text_token_mask)
     
-        print(f"[INFO] Language Embedding Infer time cost: {self.language_time*1000:.2f} ms")
-        print(f"[INFO] Vision Embedding Infer time cost: {self.visual_time*1000:.2f} ms")
-        print(f"[INFO] Transformer Infer time cos: {self.transformer_time*1000:.2f} ms")
+        logging.info(f"Language Embedding Infer time cost: {self.language_time*1000:.2f} ms")
+        logging.info(f"Vision Embedding Infer time cost: {self.visual_time*1000:.2f} ms")
+        logging.info(f"Transformer Infer time cos: {self.transformer_time*1000:.2f} ms")
         return cls_scores, bbox_preds
 
 # 后处理函数，参考 ov_infer_e2e.py
@@ -443,8 +440,8 @@ def main():
     bert_model_path = args.bert_model or (SCRIPT_DIR / 'models' / 'bert-base-uncased')
     for model_path in [language_model_path, visual_model_path, transformer_path]:
         if not Path(model_path).exists():
-            print(f"[ERROR] Model file not found: {model_path}")
-            print("[INFO] Please run ov_convert_groundingdino_pipeline.py first to generate the IR models")
+            logging.error(f"[ERROR] Model file not found: {model_path}")
+            logging.info("Please run ov_convert_groundingdino_pipeline.py first to generate the IR models")
             return
     ov_inferencer = OVSeparateGroundingDINO(
                         language_model_path, visual_model_path, transformer_path,
@@ -468,7 +465,7 @@ def main():
     # image preprocess
     img_shape = (ov_inferencer.visual_model.inputs[0].partial_shape[2].get_max_length(),
                  ov_inferencer.visual_model.inputs[0].partial_shape[3].get_max_length())
-    print(f"[INFO] img_shape: {img_shape}")
+    logging.debug(f"img_shape: {img_shape}")
     batch_imgs = preprocess_images(image_paths, img_shape)
 
     # prompt preprocess
@@ -478,20 +475,26 @@ def main():
     else:
         text_prompts = args.prompt    
     token_positive_map, classes = get_positive_map(text_prompts, ov_inferencer.tokenizer, ov_inferencer.cfg)
-    print(f"[INFO] classes: {classes}")
+    logging.debug(f"classes: {classes}")
 
     # OV inference
-    print("[INFO] OV GroundingDINO Pipeline Infer Start...")
+    logging.info("[Pipeline] OV GroundingDINO Infer Start...")
     cls_scores, bbox_preds = ov_inferencer.inference(batch_imgs, text_prompts)
-    print(f"[DEBUG] OV GroundingDINO cls_scores: \n{cls_scores[0][:5]}")
-    print(f"[DEBUG] OV GroundingDINO bbox_preds: \n{bbox_preds[0][:5]}")
+    logging.info("=============== OV Warm up ===============")
+
+    start_time = time.time()
+    infer_count = 1
+    cls_scores, bbox_preds = ov_inferencer.inference(batch_imgs, text_prompts)
+    logging.debug(f"OV GroundingDINO cls_scores: \n{cls_scores[0][:5]}")
+    logging.debug(f"OV GroundingDINO bbox_preds: \n{bbox_preds[0][:5]}")
+    logging.info(f"[Pipeline] OV Inference time cost: {((time.time()-start_time)/infer_count)*1000:.2f} ms")
 
     # postprocess and save result
     for i, img_path in enumerate(image_paths):
         output_file = outdir / Path(img_path).name
         annotate_once(img_path, output_file, classes, cls_scores[i], bbox_preds[i], token_positive_map, args.threshold)
-        print(f"[INFO] Saved result to {output_file}")
-    print(f"[INFO] OV GroundingDINO Pipeline Infer Done")
+        logging.debug(f"Saved result to {output_file}")
+    logging.info(f"[Pipeline] OV GroundingDINO Infer Done")
 
 if __name__ == '__main__':
     main() 
