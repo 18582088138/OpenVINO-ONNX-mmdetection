@@ -118,11 +118,11 @@ def export_language_model(model, tokenizer, cfg, output_path):
     
     dynamic_axes = {
         "input_ids": {0: "batch_size", 1: "seq_len"},
-        "attention_mask": {0: "batch_size", 1: "seq_len"},
+        "attention_mask": {0: "batch_size", 1: "seq_len", 2: "seq_len_2"},
         "position_ids": {0: "batch_size", 1: "seq_len"},
         "token_type_ids": {0: "batch_size", 1: "seq_len"},
         "embedded": {0: "batch_size", 1: "seq_len"},
-        "masks": {0: "batch_size", 1: "seq_len"},
+        "masks": {0: "batch_size", 1: "seq_len", 2: "seq_len_2"},
         "hidden": {0: "batch_size", 1: "seq_len"},
     }
     
@@ -240,7 +240,7 @@ def export_transformer(model, img_shape, output_path):
         "visual_feat_2": {0: "batch_size"},
         "visual_feat_3": {0: "batch_size"},
         "embedded": {0: "batch_size", 1: "seq_len"},
-        "masks": {0: "batch_size", 1: "seq_len"},
+        "masks": {0: "batch_size", 1: "seq_len", 2: "seq_len_2"},
         "position_ids": {0: "batch_size", 1: "seq_len"},
         "text_token_mask": {0: "batch_size", 1: "seq_len"},
     }
