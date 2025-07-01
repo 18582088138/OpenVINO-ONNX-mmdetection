@@ -490,9 +490,9 @@ def main():
     logging.info(f"[Pipeline] OV Inference time cost: {((time.time()-start_time)/infer_count)*1000:.2f} ms")
 
     # postprocess and save result
-    for i, img_path in enumerate(image_paths):
+    for idx, img_path in enumerate(image_paths):
         output_file = outdir / Path(img_path).name
-        annotate_once(img_path, output_file, classes, cls_scores[i], bbox_preds[i], token_positive_map, args.threshold)
+        annotate_once(img_path, output_file, classes, cls_scores[idx], bbox_preds[idx], token_positive_map, args.threshold)
         logging.debug(f"Saved result to {output_file}")
     logging.info(f"[Pipeline] OV GroundingDINO Infer Done")
 

@@ -107,6 +107,7 @@ def find_noun_phrases(caption: str) -> list:
             nltk.download(resource, download_dir=download_dir)
     try:
         safe_nltk_download('punkt', 'tokenizers/punkt', nltk_dir_str)
+        # safe_nltk_download('punkt_tab', 'tokenizers/punkt_tab', nltk_dir_str)
         safe_nltk_download('averaged_perceptron_tagger', 'taggers/averaged_perceptron_tagger', nltk_dir_str)
     except ImportError:
         raise RuntimeError('nltk is not installed, please install it by: '
@@ -366,8 +367,8 @@ tokenizer = AutoTokenizer.from_pretrained(cfg['name'])
 def main():
     args = parse_args()
 
-    if args.images.find(',') > 0:
-        image_paths = args.images.split(',')
+    if ',' in args.images:
+        image_paths = [x.strip() for x in args.images.split(',')]
     else:
         image_paths = [args.images]
     bs = len(image_paths)
@@ -410,7 +411,7 @@ def main():
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     for i in range(bs):
-        output_file = outdir / image_paths[i].split('/')[-1]       
+        output_file = outdir / Path(image_paths[i]).name
         annotate_once(image_paths[i], output_file, classes, cls[i], bbox[i], token_positive_map, args.threshold)
         logging.debug(f"Saved result to {output_file}")
     logging.info(f"[E2E] OV GroundingDINO Infer Done")
