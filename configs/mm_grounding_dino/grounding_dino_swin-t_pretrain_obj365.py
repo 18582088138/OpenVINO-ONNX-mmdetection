@@ -55,7 +55,7 @@ model = dict(
         num_outs=4),
     encoder=dict(
         num_layers=6,
-        num_cp=6,
+        num_cp=-1, #6,
         # visual layer config
         layer_cfg=dict(
             self_attn_cfg=dict(embed_dims=256, num_levels=4, dropout=0.0),

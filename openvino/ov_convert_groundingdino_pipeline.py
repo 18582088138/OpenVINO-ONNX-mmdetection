@@ -142,9 +142,9 @@ def export_language_model(model, tokenizer, cfg, output_path):
                 "position_ids": position_ids, 
                 "token_type_ids": token_type_ids}
     ov_save_path = output_path.parent.parent / 'IR_model' / output_path.name.replace('.onnx', '.xml')
-    # ov_save_path = output_path.replace('ONNX_model', 'IR_model').replace('.onnx', '.xml')
     ov_save_path.parent.mkdir(parents=True, exist_ok=True)
-    ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    # ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    ov_model = ov.convert_model(lang_model_wrapper, example_input=ov_input)
     ov.save_model(ov_model, str(ov_save_path))
     print(f"[INFO] OpenVINO language model convert : {ov_save_path}")
 
@@ -174,10 +174,11 @@ def export_visual_model(model, img_shape, output_path):
     print(f"[INFO] ONNX vision model convert : {output_path}")
 
     ov_input = {"img": batch_inputs}
+    ov_input_name =  {"img": [1,3,800,1333]}
     ov_save_path = output_path.parent.parent / 'IR_model' / output_path.name.replace('.onnx', '.xml')
-    # ov_save_path = output_path.replace('ONNX_model', 'IR_model').replace('.onnx', '.xml')
     ov_save_path.parent.mkdir(parents=True, exist_ok=True)
-    ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    # ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    ov_model = ov.convert_model(visual_model_wrapper, input=ov_input_name, example_input=ov_input)
     ov.save_model(ov_model, str(ov_save_path))
     print(f"[INFO] OpenVINO vision model convert : {ov_save_path}")
 
@@ -284,9 +285,9 @@ def export_transformer(model, img_shape, output_path):
                 "position_ids": text_feat['position_ids'], 
                 "text_token_mask": text_feat['text_token_mask']}
     ov_save_path = output_path.parent.parent / 'IR_model' / output_path.name.replace('.onnx', '.xml')
-    # ov_save_path = output_path.replace('ONNX_model', 'IR_model').replace('.onnx', '.xml')
     ov_save_path.parent.mkdir(parents=True, exist_ok=True)
-    ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    # ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    ov_model = ov.convert_model(transformer_wrapper, example_input=ov_input)
     ov.save_model(ov_model, str(ov_save_path))
     print(f"[INFO] OpenVINO transformer model convert : {ov_save_path}")
 

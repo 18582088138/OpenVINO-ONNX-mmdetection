@@ -18,7 +18,7 @@ model = dict(
         drop_path_rate=0.3,
         patch_norm=True,
         out_indices=(1, 2, 3),
-        with_cp=True,
+        with_cp=False, #True,
         convert_weights=True,
         frozen_stages=-1,
         init_cfg=dict(type='Pretrained', checkpoint=pretrained)),
