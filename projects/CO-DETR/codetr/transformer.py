@@ -83,11 +83,10 @@ class Transformer(BaseModule):
                       [bs, embed_dims, h, w].
         """
         bs, c, h, w = x.shape
-        # use `view` instead of `flatten` for dynamically exporting to ONNX
-        x = x.view(bs, c, -1).permute(2, 0, 1)  # [bs, c, h, w] -> [h*w, bs, c]
-        pos_embed = pos_embed.view(bs, c, -1).permute(2, 0, 1)
-        query_embed = query_embed.unsqueeze(1).repeat(
-            1, bs, 1)  # [num_query, dim] -> [num_query, bs, dim]
+        x = x.flatten(2).transpose(1, 2)  # [bs, c, h, w] -> [bs, h*w, c]
+        x = x.permute(1, 0, 2)  # [bs, h*w, c] -> [h*w, bs, c]
+        pos_embed = pos_embed.flatten(2).transpose(1, 2).permute(1, 0, 2)
+        query_embed = query_embed.unsqueeze(1).repeat(1, bs, 1)
         mask = mask.view(bs, -1)  # [bs, h, w] -> [bs, h*w]
         memory = self.encoder(
             query=x,
@@ -104,7 +103,7 @@ class Transformer(BaseModule):
             key_pos=pos_embed,
             query_pos=query_embed,
             key_padding_mask=mask)
-        out_dec = out_dec.transpose(1, 2)
+        out_dec = out_dec.permute(0, 2, 1, 3)  # [num_layers, num_query, bs, dim] -> [num_layers, bs, num_query, dim]
         memory = memory.permute(1, 2, 0).reshape(bs, c, h, w)
         return out_dec, memory
 
@@ -926,28 +925,25 @@ class CoDeformableDetrTransformer(DeformableDetrTransformer):
             pos_trans_out = self.aux_pos_trans_norm[head_idx](
                 self.aux_pos_trans[head_idx](
                     self.get_proposal_pos_embed(topk_coords_unact)))
-            query_pos, query = torch.split(pos_trans_out, c, dim=2)
+            query = pos_trans_out
             if self.with_coord_feat:
                 query = query + self.pos_feats_norm[head_idx](
                     self.pos_feats_trans[head_idx](pos_feats))
-                query_pos = query_pos + self.head_pos_embed.weight[head_idx]
 
         # decoder
         query = query.permute(1, 0, 2)
         memory = memory.permute(1, 0, 2)
-        query_pos = query_pos.permute(1, 0, 2)
         inter_states, inter_references = self.decoder(
             query=query,
             key=None,
             value=memory,
-            query_pos=query_pos,
+            attn_masks=None,
             key_padding_mask=mask_flatten,
             reference_points=reference_points,
             spatial_shapes=spatial_shapes,
             level_start_index=level_start_index,
             valid_ratios=valid_ratios,
             reg_branches=reg_branches,
-            attn_masks=attn_masks,
             **kwargs)
 
         inter_references_out = inter_references

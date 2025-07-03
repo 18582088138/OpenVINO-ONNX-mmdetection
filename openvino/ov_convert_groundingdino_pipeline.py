@@ -177,7 +177,7 @@ def export_visual_model(model, img_shape, output_path):
     ov_input_name =  {"img": [1,3,800,1333]}
     ov_save_path = output_path.parent.parent / 'IR_model' / output_path.name.replace('.onnx', '.xml')
     ov_save_path.parent.mkdir(parents=True, exist_ok=True)
-    # ov_model = ov.convert_model(str(output_path), example_input=ov_input)
+    # ov_model = ov.convert_model(str(output_path), input=ov_input_name, example_input=ov_input)
     ov_model = ov.convert_model(visual_model_wrapper, input=ov_input_name, example_input=ov_input)
     ov.save_model(ov_model, str(ov_save_path))
     print(f"[INFO] OpenVINO vision model convert : {ov_save_path}")
@@ -284,10 +284,22 @@ def export_transformer(model, img_shape, output_path):
                 "masks": text_feat['masks'],
                 "position_ids": text_feat['position_ids'], 
                 "text_token_mask": text_feat['text_token_mask']}
+    # 添加静态shape
+    ov_input_name = {
+        "visual_feat_0": [1, 256, img_shape[0]//8, img_shape[1]//8],
+        "visual_feat_1": [1, 256, img_shape[0]//16, img_shape[1]//16],
+        "visual_feat_2": [1, 256, img_shape[0]//32, img_shape[1]//32],
+        "visual_feat_3": [1, 256, img_shape[0]//64, img_shape[1]//64],
+        "embedded": [1, 18, 256],
+        "masks": [1, 18, 18],
+        "position_ids": [1, 18],
+        "text_token_mask": [1, 18]
+    }
     ov_save_path = output_path.parent.parent / 'IR_model' / output_path.name.replace('.onnx', '.xml')
     ov_save_path.parent.mkdir(parents=True, exist_ok=True)
     # ov_model = ov.convert_model(str(output_path), example_input=ov_input)
     ov_model = ov.convert_model(transformer_wrapper, example_input=ov_input)
+    # ov_model = ov.convert_model(transformer_wrapper,  input=ov_input_name, example_input=ov_input)
     ov.save_model(ov_model, str(ov_save_path))
     print(f"[INFO] OpenVINO transformer model convert : {ov_save_path}")
 

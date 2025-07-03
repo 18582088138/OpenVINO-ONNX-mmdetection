@@ -246,12 +246,8 @@ class ShiftWindowMSA(BaseModule):
                 dims=(1, 2))
         else:
             x = shifted_x
-
-        #if pad_r > 0 or pad_b:
-        x = x[:, :H, :W, :].contiguous()
-
-        x = x.view(B, H * W, C)
-
+        x = x[:, :H, :W, :]
+        x = x.reshape(B, H * W, C)
         x = self.drop(x)
         return x
 
@@ -267,9 +263,13 @@ class ShiftWindowMSA(BaseModule):
         window_size = self.window_size
         #B = int(windows.shape[0] / (H * W / window_size / window_size))
         C = windows.shape[-1]
-        x = windows.view(-1, H // window_size, W // window_size, window_size,
-                         window_size, C)
-        x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, H, W, C)
+        # x = windows.view(-1, H // window_size, W // window_size, window_size,
+        #                  window_size, C)
+        # x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, H, W, C)
+
+        # Using "reshape" replace "contiguous"+"view" to reduce data copy in ov runtime
+        x = windows.view(-1, H // window_size, W // window_size, window_size, window_size, C)
+        x = x.permute(0, 1, 3, 2, 4, 5).reshape(-1, H, W, C)
         return x
 
     def window_partition(self, x):
@@ -281,10 +281,8 @@ class ShiftWindowMSA(BaseModule):
         """
         B, H, W, C = x.shape
         window_size = self.window_size
-        x = x.view(B, H // window_size, window_size, W // window_size,
-                   window_size, C)
-        windows = x.permute(0, 1, 3, 2, 4, 5).contiguous()
-        windows = windows.view(-1, window_size, window_size, C)
+        x = x.view(B, H // window_size, window_size, W // window_size, window_size, C)
+        windows = x.permute(0, 1, 3, 2, 4, 5).reshape(-1, window_size, window_size, C)
         return windows
 
 
